@@ -25,15 +25,11 @@
         /* Estilos personalizados para inputs */
         .input-cell { background: transparent; width: 100%; outline: none; }
         .input-cell:focus { background-color: #eff6ff; border-radius: 2px; }
-        /* Estilo específico para input date para que se vea limpio */
         input[type="date"]::-webkit-inner-spin-button,
         input[type="date"]::-webkit-calendar-picker-indicator {
-            opacity: 0.6;
-            cursor: pointer;
+            opacity: 0.6; cursor: pointer;
         }
-        input[type="date"]::-webkit-calendar-picker-indicator:hover {
-            opacity: 1;
-        }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
         .animate-gradient {
             background-size: 200% auto;
             animation: shine 3s linear infinite;
@@ -69,7 +65,6 @@
                 subtitle: "CONSORCIO INELPRO - SMURFIT"
             });
 
-            // Estado Inicial Tareas
             const [tasks, setTasks] = useState([
                 { id: 1, activity: "CARGA TU EXCEL PARA COMENZAR", area: "SISTEMA", supervisor: "ADMIN", status: "NO EJECUTADO", progress: 0, startDate: "", endDate: "", duration: 0, deviation: "" }
             ]);
@@ -126,24 +121,16 @@
             const handleTaskChange = (id, field, value) => {
                 setTasks(prevTasks => prevTasks.map(t => {
                     if (t.id !== id) return t;
-
-                    // Crear copia actualizada
                     const updatedTask = { ...t, [field]: value };
 
-                    // Si cambian las fechas, recalcular duración
                     if (field === 'startDate' || field === 'endDate') {
                         const start = field === 'startDate' ? value : t.startDate;
                         const end = field === 'endDate' ? value : t.endDate;
-
-                        // Solo calcular si ambas fechas existen y son válidas
                         if (start && end) {
                             const d1 = new Date(start);
                             const d2 = new Date(end);
-                            
-                            // Validar que sean fechas reales
                             if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
                                 const diffTime = d2.getTime() - d1.getTime();
-                                // Diferencia en días (se suma 1 para que sea inclusivo)
                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
                                 updatedTask.duration = diffDays > 0 ? diffDays : 0;
                             }
@@ -155,7 +142,6 @@
 
             const addTask = () => {
                 const newId = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
-                // Inicializar fechas vacías para que el input type="date" funcione bien
                 setTasks([...tasks, { id: newId, activity: "Nueva Actividad", area: "Área...", supervisor: "Sup...", status: "NO EJECUTADO", progress: 0, startDate: "", endDate: "", duration: 0, deviation: "" }]);
             };
             const removeTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); };
@@ -168,7 +154,7 @@
                 return "bg-gray-300 text-gray-700";
             };
 
-            // --- LÓGICA DE IMPORTACIÓN EXCEL AVANZADA ---
+            // --- LÓGICA DE IMPORTACIÓN EXCEL v4.2 ---
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -201,9 +187,10 @@
                             const idxArea = headers.findIndex(h => h && (h.includes("AREA") || h.includes("ÁREA")));
                             const idxSupervisor = headers.findIndex(h => h && (h.includes("SUPERVISOR") || h.includes("RESPONSABLE")));
                             const idxObs = headers.findIndex(h => h && (h.includes("OBS") || h.includes("MOTIVOS") || h.includes("DESVIACION")));
+                            // Nueva Lógica: Buscar % y Estado
                             const idxEjec = headers.findIndex(h => h && (h.includes("%") || h.includes("REAL") || h.includes("EJECUCIÓN")));
+                            const idxStatus = headers.findIndex(h => h && (h.includes("ESTADO")));
                             
-                            // IDENTIFICAR COLUMNAS DE FECHAS
                             const dateIndices = [];
                             headers.forEach((h, idx) => {
                                 if (h && (h.includes("-") || h.includes("/") || !isNaN(Date.parse(h)) || (typeof data[headerRowIndex][idx] === 'number' && data[headerRowIndex][idx] > 40000))) {
@@ -226,6 +213,7 @@
                                     const supervisor = idxSupervisor !== -1 ? (row[idxSupervisor] || "") : "";
                                     const rawObs = idxObs !== -1 ? (row[idxObs] || "") : "";
                                     
+                                    // 1. LEER PORCENTAJE
                                     let percentage = 0;
                                     if (idxEjec !== -1) {
                                         const rawPerc = row[idxEjec];
@@ -234,11 +222,24 @@
                                         }
                                     }
 
+                                    // 2. DETERMINAR ESTADO (Prioridad: Columna Estado > Porcentaje)
                                     let status = "NO EJECUTADO";
-                                    if (percentage >= 99) status = "EJECUTADO";
-                                    else if (percentage > 0) status = "EN PROGRESO";
-                                    else status = "NO EJECUTADO";
+                                    let rawStatus = idxStatus !== -1 ? (row[idxStatus] || "").toString().toUpperCase() : "";
 
+                                    if (rawStatus.includes("EJECUTADO") && !rawStatus.includes("NO")) {
+                                        status = "EJECUTADO";
+                                    } else if (rawStatus.includes("PROGRESO") || rawStatus.includes("PROC")) {
+                                        status = "EN PROGRESO";
+                                    } else if (rawStatus.includes("NO EJECUTADO") || rawStatus.includes("PENDIENTE")) {
+                                        status = "NO EJECUTADO";
+                                    } else {
+                                        // Fallback si no hay texto claro en columna Estado
+                                        if (percentage >= 99) status = "EJECUTADO";
+                                        else if (percentage > 0) status = "EN PROGRESO";
+                                        else status = "NO EJECUTADO";
+                                    }
+
+                                    // Fechas y Duración
                                     let startDate = "";
                                     let endDate = "";
                                     let duration = 0;
@@ -246,7 +247,6 @@
                                     if (dateIndices.length > 0) {
                                         let firstIdx = -1;
                                         let lastIdx = -1;
-                                        
                                         dateIndices.forEach(dObj => {
                                             const cellVal = row[dObj.idx];
                                             if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
@@ -255,24 +255,14 @@
                                                 lastIdx = dObj.idx;
                                             }
                                         });
-
                                         if (firstIdx !== -1) {
-                                            // Helper para convertir fecha Excel a YYYY-MM-DD
                                             const excelDateToJS = (val) => {
                                                 if (!isNaN(val) && val > 40000) {
                                                     const date = new Date((val - (25567 + 2)) * 86400 * 1000);
                                                     return date.toISOString().split('T')[0];
                                                 }
-                                                // Si es string DD/MM/AAAA intentar convertirlo
-                                                return ""; // Fallback si no es serial
+                                                return ""; 
                                             };
-
-                                            // Si las cabeceras son números seriales (muy común en excel)
-                                            let rawStart = headers[firstIdx];
-                                            let rawEnd = headers[lastIdx];
-                                            
-                                            // Asumir que si la cabecera es texto, no la convertimos para el input date (requiere YYYY-MM-DD)
-                                            // Para esta versión, intentaremos convertir si es numero serial, si no, lo dejamos vacio para seleccion manual
                                             startDate = excelDateToJS(data[headerRowIndex][firstIdx]);
                                             endDate = excelDateToJS(data[headerRowIndex][lastIdx]);
                                         }
@@ -306,9 +296,9 @@
 
                     if (foundData && processedTasks.length > 0) {
                         setTasks(processedTasks);
-                        alert(`¡Importación Completa! Se procesaron ${processedTasks.length} actividades.`);
+                        alert(`¡Datos cargados! ${processedTasks.length} actividades procesadas.`);
                     } else {
-                        alert("No se encontraron actividades válidas o fechas en el encabezado.");
+                        alert("No se encontraron actividades válidas.");
                     }
                 };
                 reader.readAsBinaryString(file);
@@ -414,7 +404,7 @@
 
                     {/* BARRA SUPERIOR */}
                     <div className="mb-2 flex justify-between items-center no-print bg-white p-2 rounded shadow-sm shrink-0">
-                        <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">Dashboard Inelpro <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full border border-green-200">v4.1</span></h2>
+                        <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">Dashboard Inelpro <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full border border-green-200">v4.2</span></h2>
                         <div className="flex gap-2 items-center">
                             <button onClick={() => setShowDeleteModal(true)} className="flex items-center gap-1.5 px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded hover:bg-red-200 transition border border-red-200" title="Borrar todo"><TrashIcon size={14} /> Limpiar</button>
                             <button onClick={triggerFileInput} className="flex items-center gap-1.5 px-3 py-1 bg-green-600 text-white text-xs font-bold rounded shadow-sm hover:bg-green-700 transition border border-green-700"><UploadIcon size={14} /> Importar Excel</button>
@@ -478,8 +468,6 @@
                                                             </select>
                                                         </td>
                                                         <td className="px-1 py-0.5 text-center"><input type="number" value={task.progress} onChange={(e) => handleTaskChange(task.id, 'progress', e.target.value)} className="input-cell text-center text-[9px]" /></td>
-                                                        
-                                                        {/* DATE PICKERS AQUI */}
                                                         <td className="px-1 py-0.5 text-center">
                                                             <input 
                                                                 type="date" 
