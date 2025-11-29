@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte Gerencial Inteligente</title>
+    <title>Reporte Gerencial Inelpro</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -11,13 +11,28 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Librería para leer Excel (SheetJS) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
         body { background-color: #f3f4f6; }
         @media print {
-            body { background-color: white; }
+            body { background-color: white; -webkit-print-color-adjust: exact; }
             .no-print { display: none !important; }
-            .print-full { width: 100% !important; max-width: none !important; box-shadow: none !important; border: none !important; }
+            .print-full { width: 100% !important; max-width: none !important; box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
+            @page { margin: 0.5cm; size: landscape; }
+        }
+        /* Estilos personalizados para inputs */
+        .input-cell { background: transparent; width: 100%; outline: none; }
+        .input-cell:focus { background-color: #eff6ff; border-radius: 2px; }
+        /* Estilo específico para input date para que se vea limpio */
+        input[type="date"]::-webkit-inner-spin-button,
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            opacity: 0.6;
+            cursor: pointer;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
         }
         .animate-gradient {
             background-size: 200% auto;
@@ -32,7 +47,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+        const { useState, useMemo, useEffect, useRef } = React;
 
         // --- ICONOS ---
         const CalendarIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
@@ -44,38 +59,30 @@
         const PrinterIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>;
         const SparklesIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 3v4"/><path d="M3 5h4"/><path d="M3 9h4"/></svg>;
         const XIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>;
-        const SettingsIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+        const SettingsIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+        const UploadIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+        const WarningIcon = ({size}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
 
         const ReporteAvance = () => {
             const [projectInfo, setProjectInfo] = useState({
-                title: "REPORTE DE AVANCE SEMANAL: 24 AL 29 DE NOVIEMBRE DE 2025",
+                title: "REPORTE DE AVANCE SEMANAL",
                 subtitle: "CONSORCIO INELPRO - SMURFIT"
             });
 
+            // Estado Inicial Tareas
             const [tasks, setTasks] = useState([
-                { id: 1, activity: "INTERCONEXIÓN LADO DE 545M TRANSFORMADOR", area: "1ER PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "EJECUTADO", deviation: "" },
-                { id: 2, activity: "INTERCONEXIÓN LADO DE BAJA", area: "1ER PISO EDIFICIO DE CONTROL", supervisor: "C.ACEVEDO", status: "EJECUTADO", deviation: "" },
-                { id: 3, activity: "INTERCONEXIÓN LADO DE BAJA TRANSFORMADOR", area: "1ER PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "EJECUTADO", deviation: "" },
-                { id: 4, activity: "INSTALACIÓN DE BANDEJA 600MM Y 300MM", area: "2DO PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "NO EJECUTADO", deviation: "Retraso en entrega de material" },
-                { id: 5, activity: "INSTALACIÓN DE BANDEJA 600MM Y 100MM", area: "2DO PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "NO EJECUTADO", deviation: "Falta de Personal" },
-                { id: 6, activity: "INSTALACIÓN DE BANDEJA 150MM Y 300MM", area: "2DO PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "NO EJECUTADO", deviation: "Interferencias" },
-                { id: 7, activity: "INSTALACIÓN DE BARRAJE", area: "2DO PISO EDIFICIO DE CONTROL", supervisor: "H.BERRIO", status: "NO EJECUTADO", deviation: "Falta de Personal" },
-                { id: 8, activity: "INSTALACIÓN DE SOPORTERÍA", area: "2DO PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "EJECUTADO", deviation: "" },
-                { id: 9, activity: "INTERCONEXIÓN LADO DE BAJA TRANSFORMADOR", area: "2DO PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "NO EJECUTADO", deviation: "Retraso en entrega de material" },
-                { id: 10, activity: "INSTALACIÓN DE BANDEJA Y 300MM", area: "1ER PISO EDIFICIO DE CONTROL", supervisor: "J.MAGRO", status: "NO EJECUTADO", deviation: "Interferencias" },
+                { id: 1, activity: "CARGA TU EXCEL PARA COMENZAR", area: "SISTEMA", supervisor: "ADMIN", status: "NO EJECUTADO", progress: 0, startDate: "", endDate: "", duration: 0, deviation: "" }
             ]);
 
-            // IA State
             const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+            const [showDeleteModal, setShowDeleteModal] = useState(false);
             const [analysisResult, setAnalysisResult] = useState(null);
-            
-            // API Key State
             const [apiKey, setApiKey] = useState('');
             const [showKeyModal, setShowKeyModal] = useState(false);
             const [tempKey, setTempKey] = useState('');
+            const fileInputRef = useRef(null);
 
-            // Cargar Key al inicio
             useEffect(() => {
                 const storedKey = localStorage.getItem('gemini_api_key');
                 if (storedKey) setApiKey(storedKey);
@@ -86,19 +93,12 @@
                     localStorage.setItem('gemini_api_key', tempKey.trim());
                     setApiKey(tempKey.trim());
                     setShowKeyModal(false);
-                    // Si el modal de análisis estaba pendiente, dispararlo ahora
                     if (showAnalysisModal && !analysisResult) {
                         generateAIAnalysis(tempKey.trim());
                     }
                 } else {
-                    alert("La clave parece demasiado corta. Por favor verifica.");
+                    alert("Clave inválida.");
                 }
-            };
-
-            const clearApiKey = () => {
-                localStorage.removeItem('gemini_api_key');
-                setApiKey('');
-                alert("Clave API eliminada.");
             };
 
             const stats = useMemo(() => {
@@ -112,7 +112,7 @@
             const chartData = useMemo(() => {
                 const causes = {};
                 tasks.forEach(task => {
-                if (task.status === "NO EJECUTADO" && task.deviation && task.deviation.trim() !== "" && task.deviation !== "-") {
+                if ((task.status === "NO EJECUTADO" || task.status === "EN PROGRESO") && task.deviation && task.deviation.trim() !== "" && task.deviation !== "-" && task.deviation !== "0") {
                     const cause = task.deviation.trim();
                     causes[cause] = (causes[cause] || 0) + 1;
                 }
@@ -122,21 +122,203 @@
                 return { data, maxValue };
             }, [tasks]);
 
+            // --- LÓGICA DE ACTUALIZACIÓN CON CÁLCULO DE FECHAS ---
             const handleTaskChange = (id, field, value) => {
-                setTasks(tasks.map(t => t.id === id ? { ...t, [field]: value } : t));
+                setTasks(prevTasks => prevTasks.map(t => {
+                    if (t.id !== id) return t;
+
+                    // Crear copia actualizada
+                    const updatedTask = { ...t, [field]: value };
+
+                    // Si cambian las fechas, recalcular duración
+                    if (field === 'startDate' || field === 'endDate') {
+                        const start = field === 'startDate' ? value : t.startDate;
+                        const end = field === 'endDate' ? value : t.endDate;
+
+                        // Solo calcular si ambas fechas existen y son válidas
+                        if (start && end) {
+                            const d1 = new Date(start);
+                            const d2 = new Date(end);
+                            
+                            // Validar que sean fechas reales
+                            if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+                                const diffTime = d2.getTime() - d1.getTime();
+                                // Diferencia en días (se suma 1 para que sea inclusivo)
+                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                updatedTask.duration = diffDays > 0 ? diffDays : 0;
+                            }
+                        }
+                    }
+                    return updatedTask;
+                }));
             };
+
             const addTask = () => {
                 const newId = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
-                setTasks([...tasks, { id: newId, activity: "Nueva Actividad", area: "Área...", supervisor: "Sup...", status: "PENDIENTE", deviation: "" }]);
+                // Inicializar fechas vacías para que el input type="date" funcione bien
+                setTasks([...tasks, { id: newId, activity: "Nueva Actividad", area: "Área...", supervisor: "Sup...", status: "NO EJECUTADO", progress: 0, startDate: "", endDate: "", duration: 0, deviation: "" }]);
             };
             const removeTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); };
+            const confirmDeleteAll = () => { setTasks([]); setShowDeleteModal(false); };
+            
             const getStatusColor = (status) => {
-                if (status === "EJECUTADO") return "bg-green-500 text-white";
-                if (status === "NO EJECUTADO") return "bg-red-500 text-white";
+                if (status === "EJECUTADO") return "bg-green-600 text-white";
+                if (status === "EN PROGRESO") return "bg-yellow-500 text-black";
+                if (status === "NO EJECUTADO") return "bg-red-600 text-white";
                 return "bg-gray-300 text-gray-700";
             };
 
-            // --- IA FUNCIONALIDAD ---
+            // --- LÓGICA DE IMPORTACIÓN EXCEL AVANZADA ---
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    
+                    let foundData = false;
+                    let processedTasks = [];
+
+                    for (const wsname of wb.SheetNames) {
+                        const ws = wb.Sheets[wsname];
+                        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+                        let headerRowIndex = -1;
+                        for (let i = 0; i < Math.min(data.length, 50); i++) {
+                            const rowStr = JSON.stringify(data[i] || []).toUpperCase();
+                            if (rowStr.includes("ACTIVIDADES") && (rowStr.includes("AREA") || rowStr.includes("SUPERVISOR"))) {
+                                headerRowIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (headerRowIndex !== -1) {
+                            const headers = Array.from(data[headerRowIndex] || []).map(h => (h ? h.toString().trim().toUpperCase() : ""));
+                            
+                            const idxActivity = headers.findIndex(h => h && (h.includes("ACTIVIDADES") || h.includes("ACTIVIDAD")));
+                            const idxArea = headers.findIndex(h => h && (h.includes("AREA") || h.includes("ÁREA")));
+                            const idxSupervisor = headers.findIndex(h => h && (h.includes("SUPERVISOR") || h.includes("RESPONSABLE")));
+                            const idxObs = headers.findIndex(h => h && (h.includes("OBS") || h.includes("MOTIVOS") || h.includes("DESVIACION")));
+                            const idxEjec = headers.findIndex(h => h && (h.includes("%") || h.includes("REAL") || h.includes("EJECUCIÓN")));
+                            
+                            // IDENTIFICAR COLUMNAS DE FECHAS
+                            const dateIndices = [];
+                            headers.forEach((h, idx) => {
+                                if (h && (h.includes("-") || h.includes("/") || !isNaN(Date.parse(h)) || (typeof data[headerRowIndex][idx] === 'number' && data[headerRowIndex][idx] > 40000))) {
+                                    if (!h.includes("FECHA") && !h.includes("TOTAL") && !h.includes("REAL")) {
+                                        dateIndices.push({ idx, label: h });
+                                    }
+                                }
+                            });
+
+                            if (idxActivity !== -1) {
+                                let idCounter = 1;
+                                for (let i = headerRowIndex + 1; i < data.length; i++) {
+                                    const row = data[i];
+                                    if (!row || !row[idxActivity]) continue;
+
+                                    const activityName = (row[idxActivity] || "").toString();
+                                    if (activityName.toUpperCase().includes("TOTAL") || activityName.length < 3) continue;
+
+                                    const area = idxArea !== -1 ? (row[idxArea] || "") : "";
+                                    const supervisor = idxSupervisor !== -1 ? (row[idxSupervisor] || "") : "";
+                                    const rawObs = idxObs !== -1 ? (row[idxObs] || "") : "";
+                                    
+                                    let percentage = 0;
+                                    if (idxEjec !== -1) {
+                                        const rawPerc = row[idxEjec];
+                                        if (typeof rawPerc === 'number') {
+                                            percentage = rawPerc <= 1 ? rawPerc * 100 : rawPerc;
+                                        }
+                                    }
+
+                                    let status = "NO EJECUTADO";
+                                    if (percentage >= 99) status = "EJECUTADO";
+                                    else if (percentage > 0) status = "EN PROGRESO";
+                                    else status = "NO EJECUTADO";
+
+                                    let startDate = "";
+                                    let endDate = "";
+                                    let duration = 0;
+
+                                    if (dateIndices.length > 0) {
+                                        let firstIdx = -1;
+                                        let lastIdx = -1;
+                                        
+                                        dateIndices.forEach(dObj => {
+                                            const cellVal = row[dObj.idx];
+                                            if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
+                                                duration++;
+                                                if (firstIdx === -1) firstIdx = dObj.idx;
+                                                lastIdx = dObj.idx;
+                                            }
+                                        });
+
+                                        if (firstIdx !== -1) {
+                                            // Helper para convertir fecha Excel a YYYY-MM-DD
+                                            const excelDateToJS = (val) => {
+                                                if (!isNaN(val) && val > 40000) {
+                                                    const date = new Date((val - (25567 + 2)) * 86400 * 1000);
+                                                    return date.toISOString().split('T')[0];
+                                                }
+                                                // Si es string DD/MM/AAAA intentar convertirlo
+                                                return ""; // Fallback si no es serial
+                                            };
+
+                                            // Si las cabeceras son números seriales (muy común en excel)
+                                            let rawStart = headers[firstIdx];
+                                            let rawEnd = headers[lastIdx];
+                                            
+                                            // Asumir que si la cabecera es texto, no la convertimos para el input date (requiere YYYY-MM-DD)
+                                            // Para esta versión, intentaremos convertir si es numero serial, si no, lo dejamos vacio para seleccion manual
+                                            startDate = excelDateToJS(data[headerRowIndex][firstIdx]);
+                                            endDate = excelDateToJS(data[headerRowIndex][lastIdx]);
+                                        }
+                                    }
+
+                                    let deviation = "";
+                                    if (status !== "EJECUTADO") {
+                                        deviation = rawObs || "";
+                                    }
+                                    if (deviation) deviation = deviation.toString().replace(/[\r\n]+/g, " ").trim();
+                                    if (deviation === "0") deviation = "";
+
+                                    processedTasks.push({
+                                        id: idCounter++,
+                                        activity: activityName.toUpperCase(),
+                                        area: area.toString().toUpperCase(),
+                                        supervisor: supervisor.toString().toUpperCase(),
+                                        status: status,
+                                        progress: Math.round(percentage),
+                                        startDate: startDate,
+                                        endDate: endDate,
+                                        duration: duration,
+                                        deviation: deviation
+                                    });
+                                }
+                                foundData = true;
+                                break; 
+                            }
+                        }
+                    }
+
+                    if (foundData && processedTasks.length > 0) {
+                        setTasks(processedTasks);
+                        alert(`¡Importación Completa! Se procesaron ${processedTasks.length} actividades.`);
+                    } else {
+                        alert("No se encontraron actividades válidas o fechas en el encabezado.");
+                    }
+                };
+                reader.readAsBinaryString(file);
+                e.target.value = null; 
+            };
+
+            const triggerFileInput = () => {
+                fileInputRef.current.click();
+            };
+
             const handleAnalyzeClick = () => {
                 setShowAnalysisModal(true);
                 if (!apiKey) {
@@ -149,187 +331,197 @@
             const generateAIAnalysis = async (keyToUse) => {
                 setIsAnalyzing(true);
                 setAnalysisResult(null);
-
-                const deviations = tasks
-                    .filter(t => t.status === "NO EJECUTADO")
-                    .map(t => `- Actividad: ${t.activity} (Causa: ${t.deviation})`)
-                    .join("\n");
-
-                const prompt = `
-                    Actúa como un Gerente de Proyecto Senior. Analiza estos datos y genera un JSON.
-                    DATOS: Título: ${projectInfo.title}, Cumplimiento: ${stats.compliance}%, Total: ${stats.total}, Pendientes: ${stats.notExecuted}.
-                    DESVIACIONES: ${deviations || "Ninguna."}
-                    FORMATO JSON REQUERIDO: { "summary": "Texto resumen ejecutivo formal max 50 palabras", "recommendations": ["Accion 1", "Accion 2", "Accion 3"] }
-                `;
+                const deviations = tasks.filter(t => t.status === "NO EJECUTADO" && t.deviation).map(t => `- ${t.activity}: ${t.deviation}`).join("\n");
+                const prompt = `Analiza reporte: TITULO: ${projectInfo.title}, KPIs: Cumplimiento ${stats.compliance}%, Total ${stats.total}. DESVIACIONES: ${deviations || "Ninguna"}. Genera JSON: { "summary": "Resumen ejecutivo formal (max 60 palabras)", "recommendations": ["Rec1", "Rec2", "Rec3"] }`;
 
                 try {
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${keyToUse}`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            generationConfig: { responseMimeType: "application/json" }
-                        })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } })
                     });
-
-                    if (!response.ok) throw new Error("Error en API");
+                    if (!response.ok) throw new Error("Error API");
                     const data = await response.json();
-                    const jsonResponse = JSON.parse(data.candidates[0].content.parts[0].text);
-                    setAnalysisResult(jsonResponse);
+                    setAnalysisResult(JSON.parse(data.candidates[0].content.parts[0].text));
                 } catch (error) {
                     console.error(error);
-                    setAnalysisResult({
-                        summary: "Error de conexión o Clave API inválida. Verifica tu configuración.",
-                        recommendations: ["Revisar clave API", "Verificar internet"]
-                    });
+                    setAnalysisResult({ summary: "Error conexión IA.", recommendations: ["Revisar clave"] });
                 } finally {
                     setIsAnalyzing(false);
                 }
             };
 
             return (
-                <div className="h-screen bg-gray-100 p-2 font-sans overflow-hidden flex flex-col print-full relative">
-                
-                {/* MODAL PEDIR KEY */}
-                {showKeyModal && (
-                    <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm print:hidden">
-                        <div className="bg-white rounded-lg p-6 w-96 shadow-2xl">
-                            <h3 className="font-bold text-lg mb-2 text-gray-800">Configuración de IA</h3>
-                            <p className="text-sm text-gray-600 mb-4">Para usar la inteligencia artificial, ingresa tu API Key de Gemini. Se guardará de forma segura en tu navegador.</p>
-                            <input 
-                                type="password" 
-                                placeholder="Pega tu API Key aquí..." 
-                                className="w-full border p-2 rounded mb-4 text-sm"
-                                value={tempKey}
-                                onChange={(e) => setTempKey(e.target.value)}
-                            />
-                            <div className="flex justify-end gap-2">
-                                <button onClick={() => {setShowKeyModal(false); setShowAnalysisModal(false);}} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm">Cancelar</button>
-                                <button onClick={saveApiKey} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-bold">Guardar y Continuar</button>
-                            </div>
-                            <div className="mt-4 text-xs text-center text-gray-400">
-                                <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline hover:text-blue-500">Obtener API Key gratis aquí</a>
+                <div className="min-h-screen bg-gray-100 p-2 font-sans flex flex-col print-full relative">
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls, .csv" className="hidden" />
+                    
+                    {/* MODAL API KEY */}
+                    {showKeyModal && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm print:hidden">
+                            <div className="bg-white rounded-lg p-6 w-96 shadow-2xl">
+                                <h3 className="font-bold text-lg mb-2 text-gray-800">Configuración IA</h3>
+                                <p className="text-sm text-gray-600 mb-4">Ingresa tu API Key de Gemini.</p>
+                                <input type="password" placeholder="AIzaSy..." className="w-full border p-2 rounded mb-4 text-sm" value={tempKey} onChange={(e) => setTempKey(e.target.value)} />
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => {setShowKeyModal(false); setShowAnalysisModal(false);}} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm">Cancelar</button>
+                                    <button onClick={saveApiKey} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-bold">Guardar</button>
+                                </div>
+                                <div className="mt-4 text-xs text-center"><a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline">Conseguir Key</a></div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {/* MODAL RESULTADOS IA */}
-                {showAnalysisModal && !showKeyModal && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
-                        <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden border border-purple-200">
-                            <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-4 flex justify-between items-center">
-                                <h3 className="text-white font-bold flex items-center gap-2"><SparklesIcon size={20} /> Análisis Inteligente</h3>
-                                <button onClick={() => setShowAnalysisModal(false)} className="text-white/80 hover:text-white transition"><XIcon size={20} /></button>
-                            </div>
-                            <div className="p-6">
-                                {isAnalyzing ? (
-                                    <div className="flex flex-col items-center py-8 gap-4">
-                                        <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-                                        <p className="text-gray-500 animate-pulse text-sm">Consultando a Gemini...</p>
+                    {/* MODAL BORRAR */}
+                    {showDeleteModal && (
+                        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm print:hidden">
+                            <div className="bg-white rounded-lg p-6 w-80 shadow-2xl border-2 border-red-100">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="bg-red-100 p-3 rounded-full mb-3 text-red-600"><WarningIcon size={32} /></div>
+                                    <h3 className="font-bold text-lg text-gray-800 mb-2">¿Borrar todo?</h3>
+                                    <div className="flex gap-2 w-full mt-4">
+                                        <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm font-bold">Cancelar</button>
+                                        <button onClick={confirmDeleteAll} className="flex-1 px-4 py-2 bg-red-600 text-white rounded text-sm font-bold">Sí, borrar</button>
                                     </div>
-                                ) : analysisResult ? (
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Resumen Ejecutivo</h4>
-                                            <p className="text-gray-800 text-sm leading-relaxed bg-purple-50 p-3 rounded border border-purple-100">{analysisResult.summary}</p>
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Recomendaciones</h4>
-                                            <ul className="space-y-2">
-                                                {analysisResult.recommendations.map((rec, idx) => (
-                                                    <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                                                        <span className="bg-green-100 text-green-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</span>
-                                                        {rec}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                ) : null}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {/* BARRA SUPERIOR */}
-                <div className="mb-2 flex justify-between items-center no-print bg-white p-2 rounded shadow-sm shrink-0">
-                    <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                        Editor Gerencial <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full">GitHub v1.0</span>
-                    </h2>
-                    <div className="flex gap-2 items-center">
-                        <button onClick={handleAnalyzeClick} className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-purple-600 via-blue-500 to-purple-600 text-white text-xs font-bold rounded shadow-sm hover:shadow-md transition-all animate-gradient border border-white/20">
-                            <SparklesIcon size={14} /> ✨ Analizar con IA
-                        </button>
-                        <button onClick={() => { setShowKeyModal(true); setTempKey(apiKey); }} className="p-1 text-gray-400 hover:text-gray-600" title="Configurar API Key">
-                            <SettingsIcon size={16} />
-                        </button>
-                        <div className="w-px h-6 bg-gray-200 mx-1"></div>
-                        <button onClick={addTask} className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50 transition font-medium">
-                            <PlusIcon size={14} /> Agregar
-                        </button>
-                        <button onClick={() => window.print()} className="flex items-center gap-1 px-3 py-1 bg-gray-700 text-white text-xs rounded hover:bg-gray-800 transition font-medium">
-                            <PrinterIcon size={14} /> PDF
-                        </button>
-                    </div>
-                </div>
-
-                {/* DOCUMENTO (IGUAL QUE ANTES) */}
-                <div className="print-full flex-1 bg-white shadow-xl flex flex-col overflow-hidden w-full max-w-[1280px] mx-auto border border-gray-300">
-                    <div className="bg-[#0f2d5c] text-white py-2 px-4 text-center border-b-4 border-yellow-500 shrink-0">
-                        <input value={projectInfo.title} onChange={(e) => setProjectInfo({...projectInfo, title: e.target.value})} className="bg-transparent text-white text-lg font-bold text-center w-full focus:outline-none rounded uppercase" />
-                        <input value={projectInfo.subtitle} onChange={(e) => setProjectInfo({...projectInfo, subtitle: e.target.value})} className="bg-transparent text-white text-sm mt-0 text-center w-full focus:outline-none rounded uppercase opacity-90" />
-                    </div>
-                    <div className="p-2 flex-1 flex gap-2 overflow-hidden">
-                        <div className="w-64 flex flex-col gap-2 shrink-0">
-                            <div className="bg-[#0f2d5c] text-white text-center py-1 font-bold text-xs uppercase rounded-t">Resumen Ejecutivo</div>
-                            <div className="flex-1 flex flex-col justify-between gap-2">
-                                <div className="flex items-center bg-blue-50 p-2 rounded border border-blue-100 shadow-sm flex-1"><div className="bg-[#0f2d5c] p-2 rounded-full text-white mr-2"><CalendarIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">Total Actividades</div><div className="text-2xl font-black text-[#0f2d5c]">{stats.total}</div></div></div>
-                                <div className="flex items-center bg-green-50 p-2 rounded border border-green-100 shadow-sm flex-1"><div className="bg-green-500 p-2 rounded-full text-white mr-2"><ActivityIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">Ejecutadas</div><div className="text-2xl font-black text-green-600">{stats.executed}</div></div></div>
-                                <div className="flex items-center bg-red-50 p-2 rounded border border-red-100 shadow-sm flex-1"><div className="bg-red-500 p-2 rounded-full text-white mr-2"><AlertIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">No Ejecutadas</div><div className="text-2xl font-black text-red-600">{stats.notExecuted}</div></div></div>
-                                <div className="flex items-center bg-gray-50 p-2 rounded border border-gray-200 shadow-sm flex-1"><div className="bg-[#0f2d5c] p-2 rounded-full text-white mr-2"><CheckIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">Cumplimiento</div><div className="text-2xl font-black text-[#0f2d5c]">{stats.compliance}%</div></div></div>
+                    {/* MODAL RESULTADOS IA */}
+                    {showAnalysisModal && !showKeyModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
+                            <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden border border-purple-200">
+                                <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-4 flex justify-between items-center">
+                                    <h3 className="text-white font-bold flex items-center gap-2"><SparklesIcon size={20} /> Análisis Inteligente</h3>
+                                    <button onClick={() => setShowAnalysisModal(false)} className="text-white/80 hover:text-white transition"><XIcon size={20} /></button>
+                                </div>
+                                <div className="p-6">
+                                    {isAnalyzing ? (
+                                        <div className="flex flex-col items-center py-8 gap-4">
+                                            <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+                                            <p className="text-gray-500 animate-pulse text-sm">Analizando...</p>
+                                        </div>
+                                    ) : analysisResult ? (
+                                        <div className="space-y-4">
+                                            <div><h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Resumen Ejecutivo</h4><p className="text-gray-800 text-sm leading-relaxed bg-purple-50 p-3 rounded border border-purple-100">{analysisResult.summary}</p></div>
+                                            <div><h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Recomendaciones</h4><ul className="space-y-2">{analysisResult.recommendations.map((rec, idx) => (<li key={idx} className="flex items-start gap-2 text-sm text-gray-700"><span className="bg-green-100 text-green-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{idx + 1}</span>{rec}</li>))}</ul></div>
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
-                        <div className="flex-1 flex flex-col gap-2 overflow-hidden">
-                            <div className="flex-1 flex flex-col min-h-0 border border-gray-200 rounded overflow-hidden">
-                                <div className="bg-[#0f2d5c] text-white text-center py-1 font-bold text-xs uppercase shrink-0">Seguimiento Detallado</div>
-                                <div className="overflow-auto bg-white">
-                                    <table className="w-full text-xs text-left text-gray-700">
-                                        <thead className="text-[10px] text-white uppercase bg-[#1f407a] sticky top-0 z-10">
-                                            <tr><th className="px-2 py-1 text-center w-8">No</th><th className="px-2 py-1">Actividad</th><th className="px-2 py-1 w-28">Área</th><th className="px-2 py-1 w-16">Sup.</th><th className="px-2 py-1 w-24 text-center">Estado</th><th className="px-2 py-1 w-40">Motivos Desviación</th><th className="px-1 py-1 w-8 no-print"></th></tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {tasks.map((task, index) => (
-                                                <tr key={task.id} className="hover:bg-gray-50 group">
-                                                    <td className="px-2 py-0.5 text-center font-bold text-gray-500 text-[10px]">{index + 1}</td>
-                                                    <td className="px-2 py-0.5"><input value={task.activity} onChange={(e) => handleTaskChange(task.id, 'activity', e.target.value)} className="w-full bg-transparent focus:outline-none uppercase font-medium text-[10px]" /></td>
-                                                    <td className="px-2 py-0.5"><input value={task.area} onChange={(e) => handleTaskChange(task.id, 'area', e.target.value)} className="w-full bg-transparent focus:outline-none uppercase text-[9px]" /></td>
-                                                    <td className="px-2 py-0.5"><input value={task.supervisor} onChange={(e) => handleTaskChange(task.id, 'supervisor', e.target.value)} className="w-full bg-transparent focus:outline-none uppercase text-[10px]" /></td>
-                                                    <td className="px-1 py-0.5 text-center"><select value={task.status} onChange={(e) => handleTaskChange(task.id, 'status', e.target.value)} className={`w-full text-[9px] font-bold py-0.5 px-0 rounded text-center cursor-pointer uppercase border-none focus:ring-0 ${getStatusColor(task.status)}`}><option value="EJECUTADO" className="text-black bg-white">EJECUTADO</option><option value="NO EJECUTADO" className="text-black bg-white">NO EJECUTADO</option><option value="PENDIENTE" className="text-black bg-white">PENDIENTE</option></select></td>
-                                                    <td className="px-2 py-0.5"><input value={task.deviation} placeholder="-" onChange={(e) => handleTaskChange(task.id, 'deviation', e.target.value)} className={`w-full bg-transparent focus:outline-none text-[9px] ${task.status === 'NO EJECUTADO' ? 'text-red-600' : 'text-gray-400'}`} /></td>
-                                                    <td className="px-1 py-0.5 text-center no-print opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => removeTask(task.id)} className="text-gray-400 hover:text-red-500"><TrashIcon size={12} /></button></td>
+                    )}
+
+                    {/* BARRA SUPERIOR */}
+                    <div className="mb-2 flex justify-between items-center no-print bg-white p-2 rounded shadow-sm shrink-0">
+                        <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">Dashboard Inelpro <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full border border-green-200">v4.1</span></h2>
+                        <div className="flex gap-2 items-center">
+                            <button onClick={() => setShowDeleteModal(true)} className="flex items-center gap-1.5 px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded hover:bg-red-200 transition border border-red-200" title="Borrar todo"><TrashIcon size={14} /> Limpiar</button>
+                            <button onClick={triggerFileInput} className="flex items-center gap-1.5 px-3 py-1 bg-green-600 text-white text-xs font-bold rounded shadow-sm hover:bg-green-700 transition border border-green-700"><UploadIcon size={14} /> Importar Excel</button>
+                            <div className="w-px h-6 bg-gray-200 mx-1"></div>
+                            <button onClick={handleAnalyzeClick} className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-purple-600 via-blue-500 to-purple-600 text-white text-xs font-bold rounded shadow-sm hover:shadow-md transition-all animate-gradient border border-white/20"><SparklesIcon size={14} /> IA</button>
+                            <button onClick={() => { setShowKeyModal(true); setTempKey(apiKey); }} className="p-1 text-gray-400 hover:text-gray-600"><SettingsIcon size={16} /></button>
+                            <div className="w-px h-6 bg-gray-200 mx-1"></div>
+                            <button onClick={addTask} className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50 transition font-medium"><PlusIcon size={14} /></button>
+                            <button onClick={() => window.print()} className="flex items-center gap-1 px-3 py-1 bg-gray-700 text-white text-xs rounded hover:bg-gray-800 transition font-medium"><PrinterIcon size={14} /> PDF</button>
+                        </div>
+                    </div>
+
+                    {/* DASHBOARD */}
+                    <div className="print-full flex-1 bg-white shadow-xl flex flex-col overflow-hidden w-full max-w-[1600px] mx-auto border border-gray-300">
+                        <div className="bg-[#0f2d5c] text-white py-2 px-4 text-center border-b-4 border-yellow-500 shrink-0">
+                            <input value={projectInfo.title} onChange={(e) => setProjectInfo({...projectInfo, title: e.target.value})} className="bg-transparent text-white text-xl font-bold text-center w-full focus:outline-none rounded uppercase" />
+                            <input value={projectInfo.subtitle} onChange={(e) => setProjectInfo({...projectInfo, subtitle: e.target.value})} className="bg-transparent text-white text-sm mt-0 text-center w-full focus:outline-none rounded uppercase opacity-90" />
+                        </div>
+                        <div className="p-2 flex-1 flex gap-2 overflow-hidden h-full">
+                            <div className="w-64 flex flex-col gap-2 shrink-0">
+                                <div className="bg-[#0f2d5c] text-white text-center py-1 font-bold text-xs uppercase rounded-t">Resumen Ejecutivo</div>
+                                <div className="flex-1 flex flex-col justify-between gap-2">
+                                    <div className="flex items-center bg-blue-50 p-2 rounded border border-blue-100 shadow-sm flex-1"><div className="bg-[#0f2d5c] p-2 rounded-full text-white mr-2"><CalendarIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">Total Actividades</div><div className="text-2xl font-black text-[#0f2d5c]">{stats.total}</div></div></div>
+                                    <div className="flex items-center bg-green-50 p-2 rounded border border-green-100 shadow-sm flex-1"><div className="bg-green-500 p-2 rounded-full text-white mr-2"><ActivityIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">Ejecutadas</div><div className="text-2xl font-black text-green-600">{stats.executed}</div></div></div>
+                                    <div className="flex items-center bg-red-50 p-2 rounded border border-red-100 shadow-sm flex-1"><div className="bg-red-500 p-2 rounded-full text-white mr-2"><AlertIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">No Ejecutadas</div><div className="text-2xl font-black text-red-600">{stats.notExecuted}</div></div></div>
+                                    <div className="flex items-center bg-gray-50 p-2 rounded border border-gray-200 shadow-sm flex-1"><div className="bg-[#0f2d5c] p-2 rounded-full text-white mr-2"><CheckIcon size={20} /></div><div className="flex-1 text-center"><div className="text-[10px] font-bold text-gray-500 uppercase">Cumplimiento</div><div className="text-2xl font-black text-[#0f2d5c]">{stats.compliance}%</div></div></div>
+                                </div>
+                            </div>
+                            <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+                                <div className="flex-1 flex flex-col min-h-0 border border-gray-200 rounded overflow-hidden relative">
+                                    <div className="bg-[#0f2d5c] text-white text-center py-1 font-bold text-xs uppercase shrink-0">Seguimiento Detallado</div>
+                                    <div className="overflow-auto bg-white flex-1">
+                                        <table className="w-full text-xs text-left text-gray-700">
+                                            <thead className="text-[10px] text-white uppercase bg-[#1f407a] sticky top-0 z-10">
+                                                <tr>
+                                                    <th className="px-1 py-1 text-center w-6">No</th>
+                                                    <th className="px-1 py-1 w-64">Actividad</th>
+                                                    <th className="px-1 py-1 w-24">Área</th>
+                                                    <th className="px-1 py-1 w-16">Sup.</th>
+                                                    <th className="px-1 py-1 w-24 text-center">Estado</th>
+                                                    <th className="px-1 py-1 w-10 text-center">%</th>
+                                                    <th className="px-1 py-1 w-20 text-center">Inicio</th>
+                                                    <th className="px-1 py-1 w-20 text-center">Fin</th>
+                                                    <th className="px-1 py-1 w-10 text-center">Dur.</th>
+                                                    <th className="px-1 py-1">Motivos Desviación</th>
+                                                    <th className="px-1 py-1 w-6 no-print"></th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {tasks.map((task, index) => (
+                                                    <tr key={task.id} className="hover:bg-gray-50 group">
+                                                        <td className="px-1 py-0.5 text-center font-bold text-gray-500 text-[10px]">{index + 1}</td>
+                                                        <td className="px-1 py-0.5"><input value={task.activity} onChange={(e) => handleTaskChange(task.id, 'activity', e.target.value)} className="input-cell uppercase font-medium text-[9px]" /></td>
+                                                        <td className="px-1 py-0.5"><input value={task.area} onChange={(e) => handleTaskChange(task.id, 'area', e.target.value)} className="input-cell uppercase text-[8px]" /></td>
+                                                        <td className="px-1 py-0.5"><input value={task.supervisor} onChange={(e) => handleTaskChange(task.id, 'supervisor', e.target.value)} className="input-cell uppercase text-[9px]" /></td>
+                                                        <td className="px-1 py-0.5 text-center">
+                                                            <select value={task.status} onChange={(e) => handleTaskChange(task.id, 'status', e.target.value)} className={`w-full text-[8px] font-bold py-0.5 px-0 rounded text-center cursor-pointer uppercase border-none focus:ring-0 ${getStatusColor(task.status)}`}>
+                                                                <option value="EJECUTADO" className="text-black bg-white">EJECUTADO</option>
+                                                                <option value="NO EJECUTADO" className="text-black bg-white">NO EJECUTADO</option>
+                                                                <option value="EN PROGRESO" className="text-black bg-white">EN PROGRESO</option>
+                                                            </select>
+                                                        </td>
+                                                        <td className="px-1 py-0.5 text-center"><input type="number" value={task.progress} onChange={(e) => handleTaskChange(task.id, 'progress', e.target.value)} className="input-cell text-center text-[9px]" /></td>
+                                                        
+                                                        {/* DATE PICKERS AQUI */}
+                                                        <td className="px-1 py-0.5 text-center">
+                                                            <input 
+                                                                type="date" 
+                                                                value={task.startDate} 
+                                                                onChange={(e) => handleTaskChange(task.id, 'startDate', e.target.value)} 
+                                                                className="input-cell text-center text-[9px]" 
+                                                            />
+                                                        </td>
+                                                        <td className="px-1 py-0.5 text-center">
+                                                            <input 
+                                                                type="date" 
+                                                                value={task.endDate} 
+                                                                onChange={(e) => handleTaskChange(task.id, 'endDate', e.target.value)} 
+                                                                className="input-cell text-center text-[9px]" 
+                                                            />
+                                                        </td>
+                                                        <td className="px-1 py-0.5 text-center"><input value={task.duration} readOnly className="input-cell text-center text-[9px] bg-gray-50 text-gray-500 font-bold" /></td>
+                                                        
+                                                        <td className="px-1 py-0.5"><input value={task.deviation} placeholder="-" onChange={(e) => handleTaskChange(task.id, 'deviation', e.target.value)} className={`input-cell text-[9px] ${task.status !== 'EJECUTADO' ? 'text-red-600' : 'text-gray-400'}`} /></td>
+                                                        <td className="px-1 py-0.5 text-center no-print opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => removeTask(task.id)} className="text-gray-400 hover:text-red-500"><TrashIcon size={12} /></button></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="h-32 flex flex-col shrink-0">
-                                <div className="bg-[#0f2d5c] text-white text-center py-1 font-bold text-xs uppercase rounded-t">Análisis de Causas</div>
-                                <div className="bg-white border border-gray-200 p-2 flex-1 flex items-end justify-around gap-2 rounded-b">
-                                    {chartData.data.length === 0 ? <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400 italic">Sin desviaciones.</div> : chartData.data.map((item, idx) => (
-                                        <div key={idx} className="flex flex-col items-center justify-end w-16 h-full group">
-                                            <div className="text-blue-900 font-bold text-[10px] mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</div>
-                                            <div className="w-8 bg-blue-600 rounded-t hover:bg-blue-500 transition-all shadow-sm relative" style={{ height: `${(item.value / chartData.maxValue) * 70}%`, minHeight: '4px' }}></div>
-                                            <div className="text-[8px] text-center font-bold text-gray-600 mt-1 uppercase leading-none truncate w-full" title={item.label}>{item.label}</div>
-                                        </div>
-                                    ))}
+                                <div className="h-32 flex flex-col shrink-0">
+                                    <div className="bg-[#0f2d5c] text-white text-center py-1 font-bold text-xs uppercase rounded-t">Análisis de Causas</div>
+                                    <div className="bg-white border border-gray-200 p-2 flex-1 flex items-end justify-around gap-2 rounded-b">
+                                        {chartData.data.length === 0 ? <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400 italic">Sin desviaciones registradas.</div> : chartData.data.map((item, idx) => (
+                                            <div key={idx} className="flex flex-col items-center justify-end w-16 h-full group">
+                                                <div className="text-blue-900 font-bold text-[10px] mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</div>
+                                                <div className="w-8 bg-blue-600 rounded-t hover:bg-blue-500 transition-all shadow-sm relative" style={{ height: `${(item.value / chartData.maxValue) * 70}%`, minHeight: '4px' }}></div>
+                                                <div className="text-[8px] text-center font-bold text-gray-600 mt-1 uppercase leading-none truncate w-full" title={item.label}>{item.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        <div className="bg-gray-100 text-gray-400 text-[9px] p-1 text-center uppercase shrink-0">{new Date().toLocaleDateString()} • Inelpro Dashboard</div>
                     </div>
-                    <div className="bg-gray-100 text-gray-400 text-[9px] p-1 text-center uppercase shrink-0">{new Date().toLocaleDateString()} • Generado Automáticamente</div>
-                </div>
                 </div>
             );
         };
